@@ -1,3 +1,7 @@
+configs:
+  postgres_exporter_config:
+    file: ./queries.yml
+
 services:
   prometheus:
     image: prom/prometheus:latest
@@ -12,6 +16,18 @@ services:
     networks:
       - network_monitoring
     restart: unless-stopped
+
+  postgres-exporter-pgserver94:
+    image: wrouesnel/postgres_exporter:latest
+    configs:
+      - source: postgres_exporter_config
+        target: /etc/postgres_exporter/queries.yml
+    deploy:
+      mode: replicated
+      replicas: 1
+    environment:
+      - DATA_SOURCE_NAME=postgresql://postgres@pgserver94.example.com:5432/postgres?sslmode=disable
+      - PG_EXPORTER_EXTEND_QUERY_PATH=/etc/postgres_exporter/queries.yml
 
   alertmanager:
     image: prom/alertmanager:latest
