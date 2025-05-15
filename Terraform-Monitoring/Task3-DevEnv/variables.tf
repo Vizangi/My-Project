@@ -1,22 +1,10 @@
-# Порт, на котором будет доступен веб-сервер (например, http://localhost:8080)
-variable "web_port" {
-  description = "External port for web server"
-  type        = number
-  default     = 8080
-}
-
-# Список пользователей для PostfreSQL. Каждый элемент списка - объект
-# с атрибутами 'username' и 'password'
-variable "db_users" {
-  description = "List of PostgreSQL users"
-  type        = list(object({
-    username = string
-    password = string
+# Настройки всех сред (dev, staging, prod) в одной переменной типа map(object)
+variable "environments" {
+  description = "Configurations for all environments"
+  type = map(object({
+    web_port    = number # Порт для веб-сервера (например, 8080)
+    db_user     = string # Пользователь PostgreSQL
+    db_password = string # Пароль PostgreSQL
   }))
 }
 
-variable "db_name" {
-  description = "PostgreSQL database name"
-  type        = string
-  default     = "dev_db" # Оставим пока default
-}
