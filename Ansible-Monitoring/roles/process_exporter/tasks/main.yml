@@ -1,0 +1,145 @@
+---
+- name: Install required packages (including Python, if not in base image) - ensure basic tools are present
+  ansible.builtin.apt:
+    name:
+      - openssh-server # Переубедимся, что установлен (хотя и в Terraform ставим)
+      - sudo # Переубедимся, что установлен
+      - python3 # Переубедимся, что установлен
+      - python3-apt # Переубедимся, что установлен
+      - procps # Для 'ps'
+      - grep # Для 'grep'
+      - findutils # Для 'find'
+      - iproute2 # Для 'ss'
+      - net-tools # Для 'netstat'
+      - curl # Удобная утилита
+      - nano # Удобный редактор
+    state: present
+  become: yes # Выполняем с правами root
+
+- name: Create process_exporter user and group
+  ansible.builtin.user: # Используем модуль user
+    name: "{{ process_exporter_user }}"
+    group: "{{ process_exporter_group }}"
+    create_home: no
+    system: yes
+    shell: /sbin/nologin # Нелогинящийся системный пользователь
+  become: yes # Задача требует прав root
+
+- name: Download process_exporter binary archive
+  ansible.builtin.get_url: # Используем модуль get_url
+    url: "{{ process_exporter_download_url }}"
+    dest: "/tmp/process_exporter.tar.gz"
+    mode: '0644' # Права на скачанный файл
+  become: yes # Задача требует прав root
+
+- name: Extract process_exporter binary
+  ansible.builtin.unarchive: # Используем модуль unarchive
+    src: "/tmp/process_exporter.tar.gz"
+    dest: "/tmp"
+    remote_src: yes # Файл уже на удаленном хосте (скачан get_url)
+    creates: "/tmp/process-exporter_{{ process_exporter_version }}_linux-amd64/process-exporter" # Условие: выполнять только если целевой файл не существует
+  become: yes # Задача требует прав root
+
+- name: Copy binary to system directory
+  ansible.builtin.copy: # Используем модуль copy (для файлов на удаленном хосте)
+    src: "/tmp/process-exporter_{{ process_exporter_version }}_linux-amd64/process-exporter" # Путь к извлеченному бинарнику
+    dest: "{{ process_exporter_binary_dir }}/process-exporter" # Целевой путь в системе
+    owner: "{{ process_exporter_user }}"
+    group: "{{ process_exporter_group }}"
+    mode: '0755' # Права на бинарник
+    remote_src: yes # Источник файла на удаленном хосте (/tmp)
+  become: yes # Задача требует прав root
+
+# Если нужна конфигурация (например, для фильтрации процессов)
+# - name: Create process_exporter configuration file
+#   ansible.builtin.template:
+#     src: process_exporter.config.yml.j2 # Нужен файл шаблона в templates/
+#     dest: "/etc/process_exporter/process-exporter.yml" # Целевой путь конфига
+#     owner: "{{ process_exporter_user }}"
+#     group: "{{ process_exporter_group }}"
+#     mode: '0644'
+#   become: yes
+#   notify: Restart process_exporter # Уведомить хэндлер о необходимости перезапуска
+
+- name: Create systemd service file
+  ansible.builtin.template: # Используем модуль template
+    src: process_exporter.service.j2 # Название шаблона в templates/
+    dest: /etc/systemd/system/process_exporter.service # Целевой путь systemd юнита
+    owner: root # systemd файлы принадлежат root
+    group: root
+    mode: '0644'
+  become: yes # Задача требует прав root
+  notify: Reload systemd and restart process_exporter # Уведомить хэндлер
+
+- name: Enable and start process_exporter service
+  ansible.builtin.systemd: # Используем модуль systemd
+    name: process_exporter # Имя сервиса
+    enabled: yes # Включить автозапуск при загрузке
+    state: started # Запустить сервис сейчас
+    daemon_reload: yes # Убедимся, что systemd прочитал новый юнит-файл перед попыткой его старта
+  become: yes # Задача требует прав root
+  # notify: Restart process_exporter # Можно уведомить и здесь, но лучше после изменения конфига или юнита
+
+# Задача на удаление временного архива (опционально)
+- name: Clean up downloaded archive
+  ansible.builtin.file:
+    path: "/tmp/process_exporter.tar.gz"
+    state: absent # Удалить файл
+  become: yes
+
+- name: Create user for Ansible SSH access
+  ansible.builtin.user:
+    name: "{{ ssh_user }}" # Используем переменную из инвентаря/vars
+    group: sudo # Можно добавить в группу sudo сразу, если она есть
+    create_home: yes
+    shell: /bin/bash # Оболочка для пользователя
+    system: no # Не системный пользователь
+  become: yes
+
+- name: Set password for Ansible user
+  ansible.builtin.user:
+    name: "{{ ssh_user }}"
+    password: "{{ ssh_password | password_hash('sha512') }}" # Хэшируем пароль для безопасности в теневом файле
+    update_password: on_create # Обновлять только при создании пользователя
+  become: yes
+
+- name: Configure sudoers for Ansible user (NOPASSWD)
+  ansible.builtin.copy:
+    content: "{{ ssh_user }} ALL=(ALL) NOPASSWD:ALL\n" # Содержимое файла sudoers
+    dest: "/etc/sudoers.d/99-{{ ssh_user }}-nopasswd" # Имя файла в sudoers.d
+    owner: root
+    group: root
+    mode: '0440' # Правильные права для файлов sudoers.d
+    validate: 'visudo -cf %s' # Проверяем синтаксис файла после копирования
+  become: yes
+
+- name: Ensure SSH daemon is running and configured for password auth
+  block:
+    # Проверяем текущий статус SSHD (может быть уже запущен Terraform'ом)
+    # Это нужно, если ansible перезапускается после сбоя и sshd уже работает
+
+    - name: Check if sshd is running
+      ansible.builtin.command: ps aux
+      changed_when: false
+      failed_when: false
+      register: ps_output
+
+    - name: Restart sshd if needed (e.g. config changed)
+      ansible.builtin.systemd: # Модуль systemd может работать, даже если systemd не PID 1, если доступен systemctl
+        name: sshd # Имя сервиса в Debian
+        state: restarted
+        daemon_reload: yes # Перезагрузить юниты
+      when: "'/usr/sbin/sshd -D' in ps_output.stdout" # Перезапускать, только если видим запущенный sshd -D
+      become: yes
+      ignore_errors: yes # Игнорируем ошибки, если systemd не работает
+
+    - name: Configure sshd_config for password authentication
+      ansible.builtin.lineinfile: # Модуль для редактирования строк в файле
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication ' # Найти строку с PasswordAuthentication (закомментированную или нет)
+        line: 'PasswordAuthentication yes' # Заменить ее на "PasswordAuthentication yes"
+        validate: '/usr/sbin/sshd -t -f %s' # Проверить синтаксис конфига SSHD
+      become: yes
+      notify: Restart sshd # Уведомить хэндлер о перезапуске
+
+  # Хэндлер 'Restart sshd' должен быть определен в handlers/main.yml

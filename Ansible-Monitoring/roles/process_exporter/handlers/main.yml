@@ -1,0 +1,10 @@
+---
+# Хэндлеры для роли process_exporter (или common)
+
+- name: Restart sshd
+  ansible.builtin.systemd:
+    name: sshd # Имя сервиса SSHD в Debian
+    state: restarted
+    daemon_reload: yes # Перезагрузить юниты
+  become: yes
+  ignore_errors: yes # Игнорируем ошибки, если systemd не работает

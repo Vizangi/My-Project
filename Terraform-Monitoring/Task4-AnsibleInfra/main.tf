@@ -15,7 +15,7 @@ provider "docker" {}
 # Загружаем образ Debian (один раз в корневом модуле)
 # Этот образ будет использоваться в модуле environment_servers
 resource "docker_image" "debian" {
-  name         = "debian:latest"
+  name         = "debian:11"
   keep_locally = false
 }
 

@@ -1,0 +1,14 @@
+[Unit]
+Description=Process Exporter
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User={{ process_exporter_user }}
+Group={{ process_exporter_group }}
+Type=simple # Тип сервиса - простой, основной процесс запускается напрямую
+ExecStart={{ process_exporter_binary_dir }}/process-exporter --web.listen-address=:{{ process_exporter_port }} # Путь к бинарнику и аргументы (порт)
+Restart=always # Перезапускать сервис при сбое
+
+[Install]
+WantedBy=multi-user.target

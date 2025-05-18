@@ -1,0 +1,15 @@
+--- # Файл в формате YAML начинается с трех дефисов
+
+- name: Deploy Process Exporter
+  hosts: all # Применить этот play ко всем хостам в инвентаре (или укажите конкретную группу, например, dev)
+  become: yes # Выполнять задачи с правами root (используя sudo)
+
+  # vars_files:
+  #   - vars/global.yml # Раскомментировать, если файл используется
+
+  roles:
+    - role: process_exporter # Применить роль process_exporter
+      # Здесь можно передать переменные только для этой роли,
+      # например, переопределить версию:
+      # vars:
+      #   process_exporter_version: "0.8.0"

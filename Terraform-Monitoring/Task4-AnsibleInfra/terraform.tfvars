@@ -14,4 +14,4 @@ environments = {
 }
 
 ssh_user     = "ansible_user"
-ssh_password = "your_very_secure_password"
+ssh_password = "wanderer33"

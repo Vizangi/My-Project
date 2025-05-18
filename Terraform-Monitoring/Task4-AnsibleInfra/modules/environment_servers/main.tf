@@ -25,36 +25,39 @@ resource "docker_container" "server" {
   name = "${var.env_name}-server-${count.index}"
   image = "debian:latest"
 
+
   networks_advanced {
     name = docker_network.network.name   # Подключаем к сети, созданной ВНУТРИ ЭТОГО ЖЕ вызова модуля
     ipv4_address = "${var.subnet_prefix}.${10 + count.index}"
   }
 
+  entrypoint = ["/usr/sbin/sshd"] # Запускаем SSHD
+
   command = [
     "/bin/bash",
     "-c",
     <<EOT
-      apt update -y
-      apt install -y openssh-server systemd sudo # Устанавливаем пакеты, включая sudo
+set -e # Прекратить выполнение скрипта при первой ошибке
 
-      # Создаем пользователя для SSH (Ansible user)
-      useradd -m -s /bin/bash ${var.ssh_user}
-      echo "${var.ssh_user}:${var.ssh_password}" | chpasswd # Устанавливаем пароль пользователю
+echo "--- Running apt update ---"
+apt update -y || { echo "apt update failed"; exit 1; } # Убедимся, что обновление прошло
 
-      # Настраиваем SSHD: разрешаем аутентификацию по паролю
-      # Это нужно для Ansible, который может использовать пароли. В реальной жизни - SSH ключи!
-      sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config # Опционально, если нужен root login (не рекомендуется)
-      sed -i 's/#PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config # Разрешаем парольную аутентификацию
+echo "--- Installing MINIMAL essential packages for SSH and Ansible ---"
+# Устанавливаем ТОЛЬКО openssh-server и python3, python3-apt, sudo
+# Все остальные утилиты (ps, grep, find, ss и т.д.) УСТАНОВИМ ЧЕРЕЗ ANSIBLE
+apt install -y openssh-server sudo python3 python3-apt || { echo "apt install minimal failed"; exit 1; }
 
-      # Добавляем пользователя в sudoers (для выполнения команд от root через Ansible)
-      # NOPASSWD:ALL означает, что sudo не будет запрашивать пароль для этого пользователя
-      echo "${var.ssh_user} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/99-ansible-user
-      chmod 0440 /etc/sudoers.d/99-ansible-user
+echo "--- Creating SSHD runtime directory ---"
+mkdir -p /run/sshd || { echo "mkdir /run/sshd failed"; exit 1; }
 
-      # Запускаем SSH демон в режиме "не-демона" (-D) чтобы он оставался основным процессом контейнера
-      /usr/sbin/sshd -D
-    EOT
+echo "--- Launching SSHD ---"
+# Запускаем SSH демон в режиме "не-демона" (-D).
+# Команда 'exec' заменяет текущий процесс оболочки на sshd.
+exec /usr/sbin/sshd -D || { echo "sshd failed to start"; exit 1; }
+
+echo "--- This line should not be reached ---"
+
+EOT
   ]
-  # Опционально: добавьте restart policy
-  # restart = "on-failure"
+  init = true
 }
