@@ -1,0 +1,66 @@
+--- # Файл tasks/main.yml для роли process_exporter_state_check
+
+# Эта роль проверяет статус Process Exporter и запускает/устанавливает его при необходимости
+# ОБХОД СИСТЕМЫ systemd В DOCKER КОНТЕЙНЕРАХ
+
+- name: Check if Process Exporter binary exists # Задача 1: Проверяем наличие бинарника
+  ansible.builtin.stat: # Используем модуль stat
+    path: "{{ process_exporter_binary_dir }}/process-exporter" # Путь к бинарнику из defaults (роли process_exporter_state_check)
+  register: process_exporter_binary_status # Сохраняем результат в переменную
+  become: yes # Требуются права root для доступа к /usr/local/bin
+
+# -- Блок установки, если бинарник отсутствует --
+# Эти задачи будут выполнены только если бинарник process-exporter не найден на целевом хосте
+- name: Include Process Exporter installation tasks # Задача 2: Включаем задачи установки, если бинарника нет
+  ansible.builtin.include_tasks: ../process_exporter/tasks/main.yml # <-- Включаем задачи из роли process_exporter
+  when: not process_exporter_binary_status.stat.exists # Условие: выполнять ТОЛЬКО если бинарник НЕ существует
+  # Примечание: Задачи из роли process_exporter установят бинарник, пользователя, группу и unit-файл.
+  # Убедитесь, что systemd_service задачи в process_exporter/tasks/main.yml удалены или помечены ignore_errors/failed_when=false.
+
+# -- Блок проверки и запуска процесса (ВРУЧНУЮ, ОБХОДЯ systemd) --
+
+- name: Check if process_exporter process is running # Проверяем, запущен ли процесс напрямую (обход systemd)
+  ansible.builtin.shell: "ps aux | grep -v grep | grep {{ process_exporter_binary_dir }}/process-exporter"
+  register: process_exporter_process_check
+  ignore_errors: yes # Игнорируем ошибку, если процесс не найден (grep вернет не 0 или 1)
+  changed_when: false # Эта задача не меняет состояние
+  failed_when: false # <-- Убедитесь, что эта строка есть и верно написана
+  become: yes # Требуются права root для ps aux
+
+- name: Start process_exporter process if not running # Задача 4: Запускаем процесс, если он не найден
+  ansible.builtin.command:
+    cmd: "{{ process_exporter_binary_dir }}/process-exporter --web.listen-address=:{{ process_exporter_port }} &" # Запускаем бинарник в фоне
+  become: yes # Требуются права root для запуска в системный каталог и от пользователя process_exporter
+  when: process_exporter_process_check.rc != 0 # Выполнять, если grep в предыдущей задаче не нашел процесс (rc != 0)
+  # changed_when: process_exporter_process_check.rc != 0 # Опционально: помечать как changed, только если пришлось запустить
+  # notify: Restart process_exporter # Не используем notify с systemd
+
+# -- Блок проверки доступности метрик --
+# ЭТИ ЗАДАЧИ ДОЛЖНЫ ИДТИ СРАЗУ ПОСЛЕ ПРЕДЫДУЩЕЙ ЗАДАЧИ В ФАЙЛЕ
+
+- name: Wait for Process Exporter port to be available # Ждем, пока порт станет доступен
+  ansible.builtin.wait_for:
+    port: "{{ process_exporter_port }}"
+    delay: 5 # Задержка перед первой проверкой
+    timeout: 60 # Максимальное время ожидания (в секундах)
+    state: present # Ждем, пока порт будет открыт
+    host: 127.0.0.1 # Проверяем порт на локальном хосте (т.е. внутри контейнера)
+    connect_timeout: 1
+
+- name: Check Process Exporter metrics endpoint # Проверяем доступность /metrics
+  ansible.builtin.uri:
+    url: "http://localhost:{{ process_exporter_port }}/metrics"
+    status_code: 200 # Ожидаем статус 200 OK
+    timeout: 10
+  register: process_exporter_metrics_check
+
+- name: Display metrics check result # Выводим результат проверки метрик
+  ansible.builtin.debug:
+    msg: "Process Exporter metrics check status: {{ process_exporter_metrics_check.status }}"
+
+# Задача на удаление временного архива (опционально)
+- name: Clean up downloaded archive
+  ansible.builtin.file:
+    path: "/tmp/process_exporter.tar.gz"
+    state: absent
+  become: yes

@@ -2,7 +2,7 @@
 process_exporter_version: "0.7.9" # Указываем актуальную версию Process Exporter
 process_exporter_user: "process_exporter"
 process_exporter_group: "prometheus" # Можно использовать ту же группу, что и для node_exporter
-process_exporter_download_url: "https://github.com/ncabatoff/process-exporter/releases/download/v{{ process_exporter_version }}/process-exporter-{{ process_exporter_version }}.linux-amd64.tar.gz"
+process_exporter_download_url: "https://github.com/ncabatoff/process-exporter/releases/download/v{{ process_exporter_version }}/process-exporter_{{ process_exporter_version }}_linux-amd64.tar.gz"
 process_exporter_binary_dir: "/usr/local/bin"
 process_exporter_port: 9256 # Стандартный порт Process Exporter
 

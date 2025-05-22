@@ -2,9 +2,19 @@
 # Хэндлеры для роли process_exporter (или common)
 
 - name: Restart sshd
-  ansible.builtin.systemd:
-    name: sshd # Имя сервиса SSHD в Debian
-    state: restarted
-    daemon_reload: yes # Перезагрузить юниты
+  ansible.builtin.shell: "service ssh restart"
+#    name: sshd # Имя сервиса SSHD в Debian
+#    state: restarted
+#    daemon_reload: yes # Перезагрузить юниты
   become: yes
   ignore_errors: yes # Игнорируем ошибки, если systemd не работает
+
+
+- name: Restart process_exporter # <--- Имя хэндлера ДОЛЖНО ТОЧНО СОВПАДАТЬ с notify:
+  ansible.builtin.command: "pkill process-exporter && {{ process_exporter_binary_dir }}/process-exporter --web.listen-address=:{{ process_exporter_port }} &"
+  become: yes
+#    cmd: "service process_exporter restart"
+#    name: process_exporter # Имя сервиса
+#    state: restarted # Перезапустить сервис
+#    daemon_reload: yes # Перезагрузить конфигурацию systemd (важно после изменения unit файла)
+#  become: yes # Хэндлер требует прав root

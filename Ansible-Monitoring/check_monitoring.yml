@@ -1,0 +1,16 @@
+--- # Файл в формате YAML
+
+- name: Check and ensure Process Exporter is running and accessible
+  hosts: all # Применить этот play ко всем хостам в инвентаре (или укажите группу, например, dev_test_group)
+  become: yes # Выполнять задачи с правами root (используя sudo)
+
+  # vars_files:
+  #   - vars/global.yml # Раскомментировать, если используется
+
+  roles:
+    # Применить роль process_exporter_state_check
+    # Эта роль автоматически включает задачи установки, если Process Exporter отсутствует.
+    - role: process_exporter_state_check
+      # Здесь можно переопределить переменные для этой роли, если нужно
+      # vars:
+      #   process_exporter_port: 9257 # Пример переопределения порта

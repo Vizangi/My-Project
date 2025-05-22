@@ -1,145 +1,198 @@
----
-- name: Install required packages (including Python, if not in base image) - ensure basic tools are present
+--- # Файл tasks/main.yml для роли process_exporter (Task 1: Установка И Запуск/Проверка)
+
+# Эта роль устанавливает, запускает и проверяет Process Exporter на целевых хостах.
+# Она обходит использование systemd_service, управляя сервисом вручную для Docker контейнеров.
+
+- name: Install required packages (python, sudo, basic tools for script)
   ansible.builtin.apt:
     name:
-      - openssh-server # Переубедимся, что установлен (хотя и в Terraform ставим)
-      - sudo # Переубедимся, что установлен
-      - python3 # Переубедимся, что установлен
-      - python3-apt # Переубедимся, что установлен
+      - sudo # Убедимся, что установлен (нужен для become: yes)
+      - python3 # Нужен Ansible
+      - python3-apt # Нужен модулю apt
+      # Добавляем базовые утилиты, используемые в скриптах установки/проверки
       - procps # Для 'ps'
       - grep # Для 'grep'
       - findutils # Для 'find'
       - iproute2 # Для 'ss'
       - net-tools # Для 'netstat'
-      - curl # Удобная утилита
-      - nano # Удобный редактор
+      - curl # Удобная утилита для проверки метрик
+      - nano # Удобный редактор (необязательно, но полезно)
     state: present
+    update_cache: yes # Убедимся, что кэш пакетов обновлен
   become: yes # Выполняем с правами root
 
+- name: Create prometheus group
+  ansible.builtin.group:
+    name: "{{ process_exporter_group }}" # Имя группы берем из переменных роли (defaults/main.yml)
+    system: yes # Создаем как системную группу
+  become: yes
+
 - name: Create process_exporter user and group
-  ansible.builtin.user: # Используем модуль user
-    name: "{{ process_exporter_user }}"
+  ansible.builtin.user:
+    name: "{{ process_exporter_user }}" # Имя пользователя берем из defaults/main.yml
     group: "{{ process_exporter_group }}"
-    create_home: no
-    system: yes
-    shell: /sbin/nologin # Нелогинящийся системный пользователь
-  become: yes # Задача требует прав root
+    create_home: no # Не создаем домашнюю директорию
+    system: yes # Создаем как системного пользователя
+    shell: /sbin/nologin # Оболочка без возможности логина
+  become: yes
 
 - name: Download process_exporter binary archive
-  ansible.builtin.get_url: # Используем модуль get_url
-    url: "{{ process_exporter_download_url }}"
-    dest: "/tmp/process_exporter.tar.gz"
-    mode: '0644' # Права на скачанный файл
-  become: yes # Задача требует прав root
+  ansible.builtin.get_url:
+    url: "{{ process_exporter_download_url }}" # URL из defaults/main.yml
+    dest: "/tmp/process_exporter.tar.gz" # Скачиваем во временную директорию
+    mode: '0644'
+#    checksum: sha256:b8b9c0e5a9a47a03a872b7a5a3a111b5b81d2b6c52d2b0d8b8a8d5c5c5a8d5c5 # Опционально: Добавляем контрольную сумму для проверки целостности
+  become: yes # Требуются права root для записи в /tmp или от имени пользователя
 
 - name: Extract process_exporter binary
-  ansible.builtin.unarchive: # Используем модуль unarchive
+  ansible.builtin.unarchive:
     src: "/tmp/process_exporter.tar.gz"
     dest: "/tmp"
-    remote_src: yes # Файл уже на удаленном хосте (скачан get_url)
-    creates: "/tmp/process-exporter_{{ process_exporter_version }}_linux-amd64/process-exporter" # Условие: выполнять только если целевой файл не существует
-  become: yes # Задача требует прав root
+    remote_src: yes # Источник находится на удаленном хосте
+    creates: "/tmp/process-exporter-{{ process_exporter_version }}.linux-amd64/process-exporter" # Идемпотентность: выполнять, только если бинарник не извлечен
+  become: yes
 
 - name: Copy binary to system directory
-  ansible.builtin.copy: # Используем модуль copy (для файлов на удаленном хосте)
-    src: "/tmp/process-exporter_{{ process_exporter_version }}_linux-amd64/process-exporter" # Путь к извлеченному бинарнику
-    dest: "{{ process_exporter_binary_dir }}/process-exporter" # Целевой путь в системе
-    owner: "{{ process_exporter_user }}"
-    group: "{{ process_exporter_group }}"
-    mode: '0755' # Права на бинарник
-    remote_src: yes # Источник файла на удаленном хосте (/tmp)
-  become: yes # Задача требует прав root
+  ansible.builtin.copy:
+    src: "/tmp/process-exporter-{{ process_exporter_version }}.linux-amd64/process-exporter" # Путь к извлеченному бинарнику в /tmp
+    dest: "{{ process_exporter_binary_dir }}/process-exporter" # Целевой путь в системе (из defaults/main.yml)
+    owner: "{{ process_exporter_user }}" # Владелец - пользователь process_exporter
+    group: "{{ process_exporter_group }}" # Группа - prometheus
+    mode: '0755' # Права на исполнение
+    remote_src: yes # Источник находится на удаленном хосте
+  become: yes
 
-# Если нужна конфигурация (например, для фильтрации процессов)
-# - name: Create process_exporter configuration file
-#   ansible.builtin.template:
-#     src: process_exporter.config.yml.j2 # Нужен файл шаблона в templates/
-#     dest: "/etc/process_exporter/process-exporter.yml" # Целевой путь конфига
-#     owner: "{{ process_exporter_user }}"
-#     group: "{{ process_exporter_group }}"
-#     mode: '0644'
-#   become: yes
-#   notify: Restart process_exporter # Уведомить хэндлер о необходимости перезапуска
-
-- name: Create systemd service file
-  ansible.builtin.template: # Используем модуль template
+- name: Create systemd service file # Создаем unit файл (для порядка, даже если systemd не работает)
+  ansible.builtin.template:
     src: process_exporter.service.j2 # Название шаблона в templates/
-    dest: /etc/systemd/system/process_exporter.service # Целевой путь systemd юнита
+    dest: "/etc/systemd/system/process_exporter.service" # Целевой путь для unit файла
     owner: root # systemd файлы принадлежат root
     group: root
     mode: '0644'
-  become: yes # Задача требует прав root
-  notify: Reload systemd and restart process_exporter # Уведомить хэндлер
+  become: yes
+  # notify: ... # НЕ используем notify для systemd
 
-- name: Enable and start process_exporter service
-  ansible.builtin.systemd: # Используем модуль systemd
-    name: process_exporter # Имя сервиса
-    enabled: yes # Включить автозапуск при загрузке
-    state: started # Запустить сервис сейчас
-    daemon_reload: yes # Убедимся, что systemd прочитал новый юнит-файл перед попыткой его старта
-  become: yes # Задача требует прав root
-  # notify: Restart process_exporter # Можно уведомить и здесь, но лучше после изменения конфига или юнита
+# --- ЗАДАЧИ ПРОВЕРКИ И ЗАПУСКА (Обход systemd) ---
+# ЭТИ ЗАДАЧИ ЗАМЕНЯЮТ ИСПОЛЬЗОВАНИЕ systemd_service
+
+- name: Check if process_exporter process is running # Проверяем, запущен ли процесс напрямую
+  ansible.builtin.shell: "ps aux | grep -v grep | grep '{{ process_exporter_binary_dir }}/process-exporter --web.listen-address=:{{ process_exporter_port }}'" # <-- ИЩЕМ ПОЛНУЮ КОМАНДУ С АРГУМЕНТАМИ
+  register: process_exporter_process_check
+  ignore_errors: yes # Больше не нужно ignore_errors, т.к. grep всегда возвращает 0
+  changed_when: false # Эта задача не меняет состояние
+  failed_when: false # Больше не нужно, т.к. grep всегда возвращает 0 или мы обрабатываем это
+  become: yes # Требуются права root для ps aux
+#  when: process_exporter_process_check.rc != 0
+
+- name: Start process_exporter process if not running # Запускаем процесс, если он не найден
+  ansible.builtin.command:
+    cmd: "{{ process_exporter_binary_dir }}/process-exporter --web.listen-address=:{{ process_exporter_port }} &" # Запускаем бинарник в фоне
+  become: yes # Требуются права root для запуска в системный каталог и от пользователя process_exporter
+  when: process_exporter_process_check.rc != 0 # Выполнять, если grep в предыдущей задаче не нашел процесс (rc != 0)
+  # changed_when: process_exporter_process_check.rc != 0 # Опционально: помечать как changed, только если пришлось запустить
+
+# --- ВРЕМЕННЫЕ ЗАДАЧИ ДЛЯ ОТЛАДКИ ЗАПУСКА ---
+- name: Debug: Wait a moment after starting process (optional)
+  ansible.builtin.pause:
+    seconds: 5
+  when: process_exporter_process_check.rc != 0 # Пауза только если мы только что его запустили
+
+- name: Debug: Check processes again after potential start
+  ansible.builtin.shell: "ps aux | grep -v grep | grep '{{ process_exporter_binary_dir }}/process-exporter --web.listen-address=:{{ process_exporter_port }}'"
+  register: process_exporter_process_check_after_start
+  ignore_errors: yes
+  changed_when: false
+  when: process_exporter_process_check.rc != 0 # Проверяем только если пытались запустить
+  failed_when: process_exporter_process_check_after_start.rc != 0 # Эта проверка должна пройти
+
+- name: Debug: Show process check result after start
+  ansible.builtin.debug:
+    msg: "Process check result after start (rc={{ process_exporter_process_check_after_start.rc }}): {{ process_exporter_process_check_after_start.stdout }}"
+  when: process_exporter_process_check.rc != 0 # Показываем только если пытались запустить
+
+- name: Debug: Check if port 9256 is listening (inside container)
+  ansible.builtin.shell: "ss -tulnp | grep 9256 || exit 1" # Ищем процесс, слушающий на порту 9256
+  register: port_listen_check
+  ignore_errors: yes
+  changed_when: false
+  # failed_when: port_listen_check.rc != 0 # Эта проверка должна пройти
+  when: process_exporter_process_check.rc != 0 # Проверяем порт только если пытались запустить
+
+- name: Debug: Show port check result
+  ansible.builtin.debug:
+    msg: "Port 9256 check result (rc={{ port_listen_check.rc }}): {{ port_listen_check.stdout }}"
+  when: process_exporter_process_check.rc != 0 # Показываем только если пытались запустить
+# --- КОНЕЦ ВРЕМЕННЫХ ЗАДАЧ ОТЛАДКИ ---
+
+# --- ЗАДАЧИ ПРОВЕРКИ ДОСТУПНОСТИ МЕТРИК ---
+
+- name: Wait for Process Exporter port to be available # Ждем, пока порт станет доступен
+  ansible.builtin.wait_for:
+    port: "{{ process_exporter_port }}"
+    delay: 5 # Задержка перед первой проверкой
+    timeout: 60 # Максимальное время ожидания (в секундах)
+    state: present # Ждем, пока порт будет открыт
+    host: 127.0.0.1 # Проверяем порт на локальном хосте (т.е. внутри контейнера)
+    connect_timeout: 1
+
+- name: Check Process Exporter metrics endpoint # Проверяем доступность /metrics
+  ansible.builtin.uri:
+    url: "http://localhost:{{ process_exporter_port }}/metrics"
+    status_code: 200 # Ожидаем статус 200 OK
+    timeout: 10
+  register: process_exporter_metrics_check
+
+- name: Display metrics check result # Выводим результат проверки метрик
+  ansible.builtin.debug:
+    msg: "Process Exporter metrics check status: {{ process_exporter_metrics_check.status }}"
 
 # Задача на удаление временного архива (опционально)
 - name: Clean up downloaded archive
   ansible.builtin.file:
     path: "/tmp/process_exporter.tar.gz"
-    state: absent # Удалить файл
+    state: absent
   become: yes
 
-- name: Create user for Ansible SSH access
-  ansible.builtin.user:
-    name: "{{ ssh_user }}" # Используем переменную из инвентаря/vars
-    group: sudo # Можно добавить в группу sudo сразу, если она есть
-    create_home: yes
-    shell: /bin/bash # Оболочка для пользователя
-    system: no # Не системный пользователь
-  become: yes
+# --- ВРЕМЕННЫЕ ЗАДАЧИ ДЛЯ ОТЛАДКИ ЗАПУСКА ---
+- name: Debug: Wait a moment after starting process (optional)
+  ansible.builtin.pause:
+    seconds: 5
+  when: process_exporter_process_check.rc != 0 # Пауза только если мы только что его запустили
 
-- name: Set password for Ansible user
-  ansible.builtin.user:
-    name: "{{ ssh_user }}"
-    password: "{{ ssh_password | password_hash('sha512') }}" # Хэшируем пароль для безопасности в теневом файле
-    update_password: on_create # Обновлять только при создании пользователя
-  become: yes
+- name: Debug: Check processes again after potential start
+  ansible.builtin.shell: "ps aux | grep -v grep | grep '{{ process_exporter_binary_dir }}/process-exporter --web.listen-address=:{{ process_exporter_port }}'"
+  register: process_exporter_process_check_after_start
+  ignore_errors: yes
+  changed_when: false
+  when: process_exporter_process_check.rc != 0 # Проверяем только если пытались запустить
+  failed_when: process_exporter_process_check_after_start.rc != 0 # Эта проверка должна пройти
 
-- name: Configure sudoers for Ansible user (NOPASSWD)
-  ansible.builtin.copy:
-    content: "{{ ssh_user }} ALL=(ALL) NOPASSWD:ALL\n" # Содержимое файла sudoers
-    dest: "/etc/sudoers.d/99-{{ ssh_user }}-nopasswd" # Имя файла в sudoers.d
-    owner: root
-    group: root
-    mode: '0440' # Правильные права для файлов sudoers.d
-    validate: 'visudo -cf %s' # Проверяем синтаксис файла после копирования
-  become: yes
+- name: Debug: Show process check result after start
+  ansible.builtin.debug:
+    msg: "Process check result after start (rc={{ process_exporter_process_check_after_start.rc }}): {{ process_exporter_process_check_after_start.stdout }}"
+  when: process_exporter_process_check.rc != 0 # Показываем только если пытались запустить
 
-- name: Ensure SSH daemon is running and configured for password auth
-  block:
-    # Проверяем текущий статус SSHD (может быть уже запущен Terraform'ом)
-    # Это нужно, если ansible перезапускается после сбоя и sshd уже работает
+- name: Debug: Check if port 9256 is listening (inside container)
+  ansible.builtin.shell: "ss -tulnp | grep 9256 || exit 1" # Ищем процесс, слушающий на порту 9256
+  register: port_listen_check
+  ignore_errors: yes
+  changed_when: false
+  # failed_when: port_listen_check.rc != 0 # Эта проверка должна пройти
+  when: process_exporter_process_check.rc != 0 # Проверяем порт только если пытались запустить
 
-    - name: Check if sshd is running
-      ansible.builtin.command: ps aux
-      changed_when: false
-      failed_when: false
-      register: ps_output
+- name: Debug: Show port check result
+  ansible.builtin.debug:
+    msg: "Port 9256 check result (rc={{ port_listen_check.rc }}): {{ port_listen_check.stdout }}"
+  when: process_exporter_process_check.rc != 0 # Показываем только если пытались запустить
+# --- КОНЕЦ ВРЕМЕННЫХ ЗАДАЧ ОТЛАДКИ ---
 
-    - name: Restart sshd if needed (e.g. config changed)
-      ansible.builtin.systemd: # Модуль systemd может работать, даже если systemd не PID 1, если доступен systemctl
-        name: sshd # Имя сервиса в Debian
-        state: restarted
-        daemon_reload: yes # Перезагрузить юниты
-      when: "'/usr/sbin/sshd -D' in ps_output.stdout" # Перезапускать, только если видим запущенный sshd -D
-      become: yes
-      ignore_errors: yes # Игнорируем ошибки, если systemd не работает
-
-    - name: Configure sshd_config for password authentication
-      ansible.builtin.lineinfile: # Модуль для редактирования строк в файле
-        path: /etc/ssh/sshd_config
-        regexp: '^#?PasswordAuthentication ' # Найти строку с PasswordAuthentication (закомментированную или нет)
-        line: 'PasswordAuthentication yes' # Заменить ее на "PasswordAuthentication yes"
-        validate: '/usr/sbin/sshd -t -f %s' # Проверить синтаксис конфига SSHD
-      become: yes
-      notify: Restart sshd # Уведомить хэндлер о перезапуске
-
-  # Хэндлер 'Restart sshd' должен быть определен в handlers/main.yml
+# --- Задачи проверки доступности метрик (Они идут ПОСЛЕ отладки) ---
+- name: Wait for Process Exporter port to be available # Ждем, пока порт станет доступен (эта задача зависала)
+  ansible.builtin.wait_for:
+    port: "{{ process_exporter_port }}"
+    delay: 5
+    timeout: 60
+    state: present
+    host: 127.0.0.1
+    connect_timeout: 1
+# ... остальные задачи проверки метрик ...
