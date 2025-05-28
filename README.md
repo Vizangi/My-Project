@@ -20,7 +20,7 @@ cd credit-monitoring
 terraform init && terraform apply
 
 # 2. Конфигурируем окружение
-ansible-playbook -i inventory setup.yml
+ansible-playbook -i inventory playbook.yml
 
 # 3. Запускаем мониторинг
 docker-compose up -d
