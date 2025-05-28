@@ -9,3 +9,18 @@
 - **Prometheus** — сбор метрик
 - **Grafana** — дашборды
 - **Alertmanager** — алёрты
+
+## 🚀 Быстрый старт
+
+```bash
+git clone https://github.com/username/credit-monitoring.git
+cd credit-monitoring
+
+# 1. Разворачиваем инфраструктуру
+terraform init && terraform apply
+
+# 2. Конфигурируем окружение
+ansible-playbook -i inventory setup.yml
+
+# 3. Запускаем мониторинг
+docker-compose up -d
