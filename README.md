@@ -13,7 +13,7 @@
 ## 🚀 Быстрый старт
 
 ```bash
-git clone https://github.com/username/credit-monitoring.git
+git clone https://github.com/Vizangi/My-Project/
 cd credit-monitoring
 
 # 1. Разворачиваем инфраструктуру
