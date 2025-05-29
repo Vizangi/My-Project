@@ -8,7 +8,7 @@
 - **Docker Compose** — запуск Prometheus, Grafana, Alertmanager, node_exporter и др.
 - **Prometheus** — сбор метрик
 - **Grafana** — дашборды
-- **Alertmanager** — алёрты
+- **Alertmanager** — алерты
 
 ## 🚀 Быстрый старт
 
