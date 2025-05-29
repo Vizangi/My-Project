@@ -23,4 +23,4 @@ terraform init && terraform apply
 ansible-playbook -i inventory playbook.yml
 
 # 3. Запускаем мониторинг
-docker-compose up -d
+docker compose up -d
