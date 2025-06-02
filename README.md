@@ -70,4 +70,13 @@ docker-compose up -d
 
 Кастомные SQL-запросы к базе
 
+
+## 🛠 TODO
+
+- [ ] Добавить Blackbox Exporter для проверки доступности API
+- [ ] Автоматизировать настройку Grafana dashboard через JSON API
+- [ ] Добавить алерт при падении process_exporter
+- [ ] Интеграция Slack / Telegram для алертов
+
+
 Алерты через Alertmanager (примеры в alertmanager.yml)
