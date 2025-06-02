@@ -70,6 +70,8 @@ docker-compose up -d
 
 Кастомные SQL-запросы к базе
 
+Алерты через Alertmanager (примеры в alertmanager.yml)
+
 
 ## 🛠 TODO
 
@@ -77,6 +79,3 @@ docker-compose up -d
 - [ ] Автоматизировать настройку Grafana dashboard через JSON API
 - [ ] Добавить алерт при падении process_exporter
 - [ ] Интеграция Slack / Telegram для алертов
-
-
-Алерты через Alertmanager (примеры в alertmanager.yml)
