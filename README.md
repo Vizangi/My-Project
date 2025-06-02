@@ -3,22 +3,21 @@
 
 ## Быстрый старт
 
-```bash
 # Credit Conveyor Monitoring
 
 Мониторинг кредитного конвейера с помощью Prometheus, Grafana, Alertmanager. Инфраструктура разворачивается через Terraform, настраивается через Ansible, сервисы контейнеризованы в Docker.
 
 ##  Стек
 
-- **Terraform** — инфраструктура (VM, сеть)
-- **Ansible** — автоматизация установки экспортеров
-- **Docker Compose** — Prometheus, Grafana, Alertmanager, Node Exporter, nginx
-- **Экспортеры** — process_exporter, node_exporter и др.
-- **Fake Data Generator** — Python-скрипт `generate_fake_data.py`
+- Terraform 
+- Ansible
+- Docker Compose 
+- Экспортеры
+- Fake Data Generator
 
 ---
 
-## 📦 Структура проекта
+## Структура проекта
 
 <details>
 <summary><code>Task4-AnsibleInfra/</code> — Terraform</summary>
