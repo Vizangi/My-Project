@@ -1,7 +1,7 @@
 # Проект: Credit Conveyor Monitoring
 
 
-## 🚀 Быстрый старт
+## Быстрый старт
 
 ```bash
 # 🔍 Credit Conveyor Monitoring
