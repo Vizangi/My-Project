@@ -63,7 +63,7 @@ docker-compose up -d
 ```
 
 
-##📊 Метрики и Алерты
+## 📊 Метрики и Алерты
 Нагрузка CPU / память (Node Exporter)
 
 Активные процессы (Process Exporter)
