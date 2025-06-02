@@ -1,8 +1,6 @@
 # Проект: Credit Conveyor Monitoring
 
 
-## Быстрый старт
-
 # Credit Conveyor Monitoring
 
 Мониторинг кредитного конвейера с помощью Prometheus, Grafana, Alertmanager. Инфраструктура разворачивается через Terraform, настраивается через Ansible, сервисы контейнеризованы в Docker.
