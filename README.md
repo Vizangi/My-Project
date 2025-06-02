@@ -57,7 +57,7 @@ docker-compose up -d
 ```
 
 
-## 📊 Метрики и Алерты
+##  Метрики и Алерты
 Нагрузка CPU / память (Node Exporter)
 
 Активные процессы (Process Exporter)
@@ -67,7 +67,7 @@ docker-compose up -d
 Алерты через Alertmanager (примеры в alertmanager.yml)
 
 
-## 🛠 TODO
+##  TODO
 
 - [ ] Добавить Blackbox Exporter для проверки доступности API
 - [ ] Автоматизировать настройку Grafana dashboard через JSON API
