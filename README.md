@@ -4,11 +4,11 @@
 ## Быстрый старт
 
 ```bash
-# 🔍 Credit Conveyor Monitoring
+# Credit Conveyor Monitoring
 
 Мониторинг кредитного конвейера с помощью Prometheus, Grafana, Alertmanager. Инфраструктура разворачивается через Terraform, настраивается через Ansible, сервисы контейнеризованы в Docker.
 
-## 🧱 Стек
+##  Стек
 
 - **Terraform** — инфраструктура (VM, сеть)
 - **Ansible** — автоматизация установки экспортеров
