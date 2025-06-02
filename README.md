@@ -61,3 +61,13 @@ ansible-playbook -i inventories/hosts.yml playbook.yml
 cd ../Docker-Monitoring
 docker-compose up -d
 ```
+
+
+##📊 Метрики и Алерты
+Нагрузка CPU / память (Node Exporter)
+
+Активные процессы (Process Exporter)
+
+Кастомные SQL-запросы к базе
+
+Алерты через Alertmanager (примеры в alertmanager.yml)
