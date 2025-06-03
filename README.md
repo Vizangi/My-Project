@@ -73,3 +73,54 @@ docker-compose up -d
 - [ ] Автоматизировать настройку Grafana dashboard через JSON API
 - [ ] Добавить алерт при падении process_exporter
 - [ ] Интеграция Slack / Telegram для алертов
+
+```
+Terraform:
+
+Task4-AnsibleInfra/ 
+├── main.tf          <- Главный файл, вызывает модули
+├── variables.tf     <- Определяет переменные, их типы и описания
+├── terraform.tfvars <- Задает значения для переменных
+├── modules/
+│   └── environment_servers/
+│       ├── main.tf  <- Ресурсы для одной среды (сети+серверы)
+│       └── variables.tf <- Входные переменные модуля
+└── terraform.tfstate <- Файл состояния (создается после apply)
+
+
+Ansible:
+
+Ansible-Monitoring/
+├── playbook.yml      <- Главный файл, определяет Play и вызывает роли
+├── inventories/
+│   └── hosts.yml     <- Список управляемых хостов и их группировка
+├── roles/
+│   └── process_exporter/
+│       ├── tasks/
+│       │   └── main.yml <- Задачи роли (установка, проверка, запуск)
+│       ├── defaults/
+│       │   └── main.yml <- Значения переменных по умолчанию
+│       ├── templates/
+│       │   └── process_exporter.service.j2 <- Шаблон unit файла
+│       ├── handlers/
+│       │   └── main.yml <- Обработчики (запускаются по notify)
+│       └── ... другие подкаталоги роли
+├── vars/             <- Каталог переменных (например, global.yml)
+└── ansible.cfg       <- Общие настройки Ansible
+
+
+Docker:
+
+Docker-Monitoring/ 
+├── monitoring-stack 
+│     ├──grafana-dockerfile
+│     ├──node-exp-dockerfile
+│     ├──prometheus-dockerfile
+│     ├──prometheus.yml
+├── alermanager.yml  
+├── create_tables.sql  
+
+├── docker-compose.yml 
+├── generate_fake_data.py
+├── nginx.conf
+└── queries.yml
