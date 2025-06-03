@@ -39,6 +39,26 @@ Task4-AnsibleInfra/
 - `playbook.yml` — главный Playbook
 - `roles/process_exporter/` — установка и запуск exporter'а
 - `inventories/hosts.yml`, `vars/`, `ansible.cfg` — окружение и конфигурация
+
+```
+Ansible-Monitoring/
+├── playbook.yml      <- Главный файл, определяет Play и вызывает роли
+├── inventories/
+│   └── hosts.yml     <- Список управляемых хостов и их группировка
+├── roles/
+│   └── process_exporter/
+│       ├── tasks/
+│       │   └── main.yml <- Задачи роли (установка, проверка, запуск)
+│       ├── defaults/
+│       │   └── main.yml <- Значения переменных по умолчанию
+│       ├── templates/
+│       │   └── process_exporter.service.j2 <- Шаблон unit файла
+│       ├── handlers/
+│       │   └── main.yml <- Обработчики (запускаются по notify)
+│       └── ... другие подкаталоги роли
+├── vars/             <- Каталог переменных (например, global.yml)
+└── ansible.cfg       <- Общие настройки Ansible
+```
 </details>
 
 <details>
