@@ -68,6 +68,22 @@ Ansible-Monitoring/
 - `prometheus.yml`, `alertmanager.yml`, `nginx.conf` — конфиги
 - `grafana-dockerfile` и др. — кастомные образы
 - `generate_fake_data.py` — симуляция данных
+
+```
+Docker-Monitoring/ 
+├── monitoring-stack 
+│     ├──grafana-dockerfile
+│     ├──node-exp-dockerfile
+│     ├──prometheus-dockerfile
+│     ├──prometheus.yml
+├── alermanager.yml  
+├── create_tables.sql  
+
+├── docker-compose.yml 
+├── generate_fake_data.py
+├── nginx.conf
+└── queries.yml
+```
 </details>
 
 ---
