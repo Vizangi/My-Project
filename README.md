@@ -21,6 +21,18 @@
 - `modules/environment_servers/` — шаблон окружения (VM, сеть)
 </details>
 
+```
+Task4-AnsibleInfra/ 
+├── main.tf          <- Главный файл, вызывает модули
+├── variables.tf     <- Определяет переменные, их типы и описания
+├── terraform.tfvars <- Задает КОНКРЕТНЫЕ значения для переменных
+├── modules/
+│   └── environment_servers/
+│       ├── main.tf  <- Ресурсы для ОДНОЙ среды (сети+серверы)
+│       └── variables.tf <- Входные переменные модуля
+└── terraform.tfstate <- Файл состояния (создается после apply), ЗНАЕТ о развернутой инфре
+```
+
 <details>
 <summary><code>Ansible-Monitoring/</code> — Ansible</summary>
 
