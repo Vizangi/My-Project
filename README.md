@@ -74,6 +74,8 @@ docker-compose up -d
 - [ ] Добавить алерт при падении process_exporter
 - [ ] Интеграция Slack / Telegram для алертов
 
+
+## Структура
 ```
 Terraform:
 
